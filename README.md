@@ -1,6 +1,7 @@
 # scroll-grid
 
 一、组件概述 
+
 基于jQuery WeUi的手机端滚动分页组件，实现上拉加载下一页数据及下拉加载最新数据。对比网上常用手机端分页组件（如，iscroll.js）主要有以下优势： 
 
 1.使用非常简单，学习成本很低，1行js代码既可以完成前端代码编写 
@@ -28,8 +29,11 @@
 使用本组件引入jQuery WeUi 相关的js和css，同时，引入scroll-grid.js编写下述代码完成组件调用。
  
  $('#list').srollGrid({
+ 
 		 url:'demoList.action'
+		 
 		 });
+		 
 代码说明（更多参数请查看源码）：
 
 1."#list"为显示列表的容器
