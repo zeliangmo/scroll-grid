@@ -25,6 +25,9 @@ $.srollGridFtn = {
     //初始化方法
 	init:function(opts,container){
 		  var that = this;
+		  //初始化清空缓存数据
+		  that.cleanCache(opts,container);
+		  
 		  //校验标签
 		  if(that.valify(opts,container)==false)return false;
 		  
@@ -64,6 +67,8 @@ $.srollGridFtn = {
 		  //定时刷新当前滚动条位置
 		  that.setScrollTop(opts);
 		  
+		  //清空事件
+		  $(document.body).unbind();
 		  //绑定jQuery WeUi上拉滚动加载页面事件
 	      $(document.body).infinite().on("infinite", function() {
 	        if(opts.loading) return;
@@ -76,10 +81,8 @@ $.srollGridFtn = {
 	    	 setTimeout(function(){
 	    		 opts.currentPage = 1;
 		    	  opts.totalPage = 10000;
-		    	  that.setCacheData('');
-		    	  container.html('');
+		    	  that.cleanCache(opts,container);
 		    	  that.loadData(opts,container)
-		    	  
 		    	  $(document.body).pullToRefreshDone();
 	    	 },100)
 	        });
@@ -87,17 +90,19 @@ $.srollGridFtn = {
 	},
 	//初始化加载提示
 	initLoadingTip:function(){
-		var loadingTips  = '<div class="weui-infinite-scroll"><div class="infinite-preloader"></div><span>正在加载...</span></div>';
-		$(document.body).append(loadingTips);
-		
-		var reflashTips = '<div class="weui-pull-to-refresh-layer">'
-						 +'<div class="pull-to-refresh-arrow"></div>'
-						 +'<div class="pull-to-refresh-preloader"></div>'
-						 +'<div class="down">下拉刷新</div>'
-						 +'<div class="up">释放刷新</div>'
-						 +'<div class="refresh">正在刷新</div>'
-						 +'</div>';
-		$(document.body).prepend(reflashTips);
+		if($('.weui-infinite-scroll').length==0){
+			var loadingTips  = '<div class="weui-infinite-scroll"><div class="infinite-preloader"></div><span>正在加载...</span></div>';
+			$(document.body).append(loadingTips);
+			
+			var reflashTips = '<div class="weui-pull-to-refresh-layer">'
+				+'<div class="pull-to-refresh-arrow"></div>'
+				+'<div class="pull-to-refresh-preloader"></div>'
+				+'<div class="down">下拉刷新</div>'
+				+'<div class="up">释放刷新</div>'
+				+'<div class="refresh">正在刷新</div>'
+				+'</div>';
+			$(document.body).prepend(reflashTips);
+		}
 	},
 	/**
 	 * 
@@ -109,7 +114,6 @@ $.srollGridFtn = {
 		
 		var that = this;
 		isReflash = null==isReflash||typeof(isReflash)=='undefined'?false:isReflash;
-		
 		var paramsData = $.extend(opts.data,{pageSize:opts.pageSize,currentPage:opts.currentPage}); 
 		$('.weui-infinite-scroll').find('span').text('正在加载...');
 		$('.weui-infinite-scroll').show();
@@ -121,6 +125,7 @@ $.srollGridFtn = {
 			setTimeout(function(){
 				$('.weui-infinite-scroll').hide();
 				opts.loading = false;
+				var botton = $(window).height()-($('.weui-infinite-scroll').height()+($('.weui-infinite-scroll').offset().top-$(document).scrollTop()));
 			},2000);
 		}else{
 			$.ajax({
@@ -147,6 +152,12 @@ $.srollGridFtn = {
 					
 					container.append(result.html());
 					
+					//判断数据不够，则隐藏加载提示
+					var bottom = $(window).height()-($('.weui-infinite-scroll').height()+($('.weui-infinite-scroll').offset().top-$(document).scrollTop()));
+					if(bottom>0){
+						$('.weui-infinite-scroll').hide();
+					}
+					
 					opts.loading = false;
 					//选择成功后，执行回调函数
 					if($.isFunction(opts.success)){
@@ -155,6 +166,11 @@ $.srollGridFtn = {
 				}
 			})
 		}
+	},
+	//清空缓存数据
+	cleanCache:function(opts,container){
+		this.setCacheData('');
+  	    container.html('');
 	},
 	//校验组件调用时候正确
 	valify:function(opts,container){
