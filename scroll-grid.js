@@ -3,10 +3,13 @@
  * by mzl 
  * 2016-11-30
  */
+
+var SROLLGRID_ISRELOAD = true;
 (function($){ 
 $.fn.srollGrid = function(option){
 	   var defaults = {
   		    url:'',//加载数据的url
+  		    dataContainer:'.dataContainer',//存放数据的容器
   		    timestamp:'#intoPageTime',//存储时间戳hidden的id
 			data:{},//参数
 			loading:false,
@@ -25,15 +28,19 @@ $.srollGridFtn = {
     //初始化方法
 	init:function(opts,container){
 		  var that = this;
+		  console.log("SROLLGRID_ISRELOAD="+SROLLGRID_ISRELOAD)
 		  //初始化清空缓存数据
-		  that.cleanCache(opts,container);
+		  if(SROLLGRID_ISRELOAD==false){
+			  that.cleanCache(opts,container);
+		  }
 		  
 		  //校验标签
 		  if(that.valify(opts,container)==false)return false;
 		  
-		  that.initLoadingTip();
+		  that.initLoadingTip(container);
 		  
 		  var cacheData = that.getCacheData(opts);
+		  
 		  //判断缓存数据为空，则重新加载数据
 		  if(''==cacheData){
 			//初始化执行loadata方法
@@ -59,9 +66,13 @@ $.srollGridFtn = {
 				  
 				 //缓存为true，直接使用缓存的数据
 			  }else{
-				  container.append(cacheData)
+				  container.find(opts.dataContainer).append(cacheData)
 				  var scrollTop = that.getScrollTop(opts);
 				  $(window).scrollTop(scrollTop);  
+				//成功后，执行回调函数
+					if($.isFunction(opts.success)){
+						opts.success(opts,cacheData);
+					}
 			  }
 		  }
 		  //定时刷新当前滚动条位置
@@ -77,31 +88,31 @@ $.srollGridFtn = {
 	      })
 	      
 	      //绑定页面下拉刷新数据时间
-	      $(document.body).pullToRefresh().on("pull-to-refresh", function() {
+	     container.pullToRefreshSG().on("pull-to-refresh", function() {
 	    	 setTimeout(function(){
 	    		 opts.currentPage = 1;
 		    	  opts.totalPage = 10000;
 		    	  that.cleanCache(opts,container);
 		    	  that.loadData(opts,container)
-		    	  $(document.body).pullToRefreshDone();
+		    	  container.pullToRefreshSGDone();
 	    	 },100)
 	        });
-	      
+	      SROLLGRID_ISRELOAD = false; 
 	},
 	//初始化加载提示
-	initLoadingTip:function(){
+	initLoadingTip:function(container){
 		if($('.weui-infinite-scroll').length==0){
 			var loadingTips  = '<div class="weui-infinite-scroll"><div class="infinite-preloader"></div><span>正在加载...</span></div>';
 			$(document.body).append(loadingTips);
 			
-			var reflashTips = '<div class="weui-pull-to-refresh-layer">'
+			var reflashTips = '<div class="weui-pull-to-refresh-layer" >'
 				+'<div class="pull-to-refresh-arrow"></div>'
 				+'<div class="pull-to-refresh-preloader"></div>'
 				+'<div class="down">下拉刷新</div>'
 				+'<div class="up">释放刷新</div>'
 				+'<div class="refresh">正在刷新</div>'
 				+'</div>';
-			$(document.body).prepend(reflashTips);
+			container.prepend(reflashTips);
 		}
 	},
 	/**
@@ -119,7 +130,7 @@ $.srollGridFtn = {
 		$('.weui-infinite-scroll').show();
 		$('.infinite-preloader').show();
 		//当前页数大于总页数，则不再发请求
-		if(opts.totalPage<opts.currentPage){
+		if(opts.totalPage-opts.currentPage<0){
 			$('.infinite-preloader').hide();
 			$('.weui-infinite-scroll').find('span').text('已无更多数据');
 			setTimeout(function(){
@@ -150,7 +161,7 @@ $.srollGridFtn = {
 						that.setCacheData(opts,result.html());
 					}
 					
-					container.append(result.html());
+					container.find(opts.dataContainer).append(result.html());
 					
 					//判断数据不够，则隐藏加载提示
 					var bottom = $(window).height()-($('.weui-infinite-scroll').height()+($('.weui-infinite-scroll').offset().top-$(document).scrollTop()));
@@ -159,23 +170,30 @@ $.srollGridFtn = {
 					}
 					
 					opts.loading = false;
-					//选择成功后，执行回调函数
+					
+					//成功后，执行回调函数
 					if($.isFunction(opts.success)){
 						opts.success(opts,result.html());
 					}
 				}
 			})
 		}
+		
+		
 	},
 	//清空缓存数据
 	cleanCache:function(opts,container){
-		this.setCacheData('');
-  	    container.html('');
+		var that = this;
+  	    container.find(opts.dataContainer).html('');
+		var key = that.getDataKey(opts);
+		that.putStorage(key,'',true);
+		
+		opts.currentPage = 1;
 	},
 	//校验组件调用时候正确
 	valify:function(opts,container){
-		if(container.length==0){
-			alert('未能找数据渲染容器')
+		if(container.find(opts.dataContainer).length==0){
+			alert('未能找数据渲染容器“'+opts.dataContainer+'”')
 			return false
 		}else if($(opts.timestamp).length==0){
 			alert('未能找到时间戳隐藏域，请再页面上加入标签<input type="hidden" id="intoPageTime" value="<%=new Date().getTime()%>"/>')
@@ -190,8 +208,10 @@ $.srollGridFtn = {
 		var key = that.getDataKey(opts);
 	    var cacheData = that.getStorage(key);
 	    cacheData = null==cacheData||typeof(cacheData)=='undefined'?'':cacheData;
-	    //初始化当前页
-	    that.initCurrentPage(opts);
+	    //第一次进入页面，从缓存初始化当前页
+	    if(SROLLGRID_ISRELOAD==true){
+	    	that.initCurrentPage(opts);
+	    }
 	    return cacheData;
 	},
 	setCacheData:function(opts,data){
@@ -265,4 +285,91 @@ $.srollGridFtn = {
 	}
 }   
  
+})(jQuery);
+
+/**
+ * extend jquery WeUI
+ * @param $
+ */
+(function($){ 
+	  "use strict";
+
+	  var PTRSG = function(el) {
+	    this.container = $(el);
+	    this.distance = 20;
+	    this.attachEvents();
+	  }
+
+	  PTRSG.prototype.touchStart = function(e) {
+	    if(this.container.hasClass("refreshing")) return;
+	    var p = $.getTouchPosition(e);
+	    this.start = p;
+	    this.diffX = this.diffY = 0;
+	  };
+        
+	  PTRSG.prototype.touchMove= function(e) {
+	    if(this.container.hasClass("refreshing")) return;
+	    if(!this.start) return false;
+	    if(this.container.scrollTop() > 0) return;
+	    var p = $.getTouchPosition(e);
+	    this.diffX = p.x - this.start.x;
+	    this.diffY = p.y - this.start.y;
+	    if(this.diffY < 0) return;
+	    if($(document).scrollTop()>0)return;
+	    $('.weui-pull-to-refresh-layer').slideDown(100);
+	    this.container.addClass("touching");
+	    e.preventDefault();
+	    e.stopPropagation();
+	    this.diffY = Math.pow(this.diffY, 0.8);
+	    this.container.css("transform", "translate3d(0, "+this.diffY+"px, 0)");
+
+	    if(this.diffY < this.distance) {
+	      this.container.removeClass("pull-up").addClass("pull-down");
+	    } else {
+	      this.container.removeClass("pull-down").addClass("pull-up");
+	    }
+	  };
+	  PTRSG.prototype.touchEnd = function() {
+	    this.start = false;
+	    if(this.diffY <= 0 || this.container.hasClass("refreshing")) return;
+	    this.container.removeClass("touching");
+	    this.container.removeClass("pull-down pull-up");
+	    this.container.css("transform", "");
+	    if(Math.abs(this.diffY) <= this.distance) {
+	    	$('.weui-pull-to-refresh-layer').slideUp(100);
+	    } else {
+	      this.container.addClass("refreshing");
+	      this.container.trigger("pull-to-refresh");
+	    }
+	  };
+
+	  PTRSG.prototype.attachEvents = function() {
+	    var el = this.container;
+	    el.on($.touchEvents.start, $.proxy(this.touchStart, this));
+	    el.on($.touchEvents.move, $.proxy(this.touchMove, this));
+	    el.on($.touchEvents.end, $.proxy(this.touchEnd, this));
+	  };
+
+	  var pullToRefreshSG = function(el) {
+		$('.weui-pull-to-refresh-layer').hide();
+	    new PTRSG(el);
+	  };
+
+	  var pullToRefreshSGDone = function(el) {
+		$('.weui-pull-to-refresh-layer').hide();
+	    $(el).removeClass("refreshing");
+	  }
+
+	  $.fn.pullToRefreshSG = function() {
+	    return this.each(function() {
+	      pullToRefreshSG(this);
+	    });
+	  }
+
+	  $.fn.pullToRefreshSGDone = function() {
+	    return this.each(function() {
+	    	pullToRefreshSGDone(this);
+	    });
+	  }
+
 })(jQuery);
